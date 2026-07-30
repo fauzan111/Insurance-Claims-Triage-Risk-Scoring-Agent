@@ -1,0 +1,37 @@
+# Render blueprint (infrastructure-as-code).
+# Deploy: Render dashboard -> New -> Blueprint -> connect this repo -> Apply.
+# Provisions the web service + a Postgres database, auto-deploys on push.
+#
+# The web service runs the whole flow (submit -> triage -> human review gate ->
+# audit). The fraud model trains in-memory on first use (fixed seed). Offline
+# defaults so the live URL works with no secrets.
+
+services:
+  - type: web
+    name: claims-triage-agent
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: prod
+      - key: LLM_PROVIDER
+        value: anthropic
+      # Set for LLM-drafted rationales (the trained fraud model runs regardless).
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: FRAUD_MODEL_SEED
+        value: "42"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: claims-triage-db
+          property: connectionString
+
+databases:
+  - name: claims-triage-db
+    plan: free
+    postgresMajorVersion: "16"

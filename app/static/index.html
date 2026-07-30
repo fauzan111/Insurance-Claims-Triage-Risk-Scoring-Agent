@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Insurance Claims Triage Agent — Live Console</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .fade-in { animation: fade .25s ease-out; } @keyframes fade { from {opacity:0;transform:translateY(4px)} to {opacity:1;transform:none} }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen">
+  <header class="bg-white border-b border-slate-200">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-rose-600 flex items-center justify-center text-white font-bold">CT</div>
+        <div>
+          <h1 class="font-semibold text-slate-900 leading-tight">Insurance Claims Triage Agent</h1>
+          <p class="text-xs text-slate-500">Policy check → trained fraud model → recommendation → <span class="font-semibold">mandatory human review</span></p>
+        </div>
+      </div>
+      <div class="flex items-center gap-4 text-sm">
+        <span id="tenantBadge" class="hidden px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 font-mono text-xs"></span>
+        <span class="flex items-center gap-1.5 text-emerald-600"><span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Live</span>
+        <a href="/docs" class="text-rose-600 hover:underline">API docs</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-6 py-8 grid gap-6 lg:grid-cols-12">
+    <section class="lg:col-span-5 space-y-6">
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <h2 class="font-semibold text-slate-900 mb-2">1 · Sign in &amp; seed a policy</h2>
+        <div class="flex gap-2 mb-2">
+          <input id="tenantName" value="Assicurazioni Demo" class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          <button id="signupBtn" class="bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium rounded-lg px-4">Start</button>
+        </div>
+        <button id="seedPolicyBtn" class="w-full text-xs border border-slate-300 hover:bg-slate-50 rounded-lg py-2 disabled:opacity-40" disabled>+ Create demo policy POL-100 (auto, €20,000 limit)</button>
+        <p id="policyMsg" class="text-xs text-emerald-600 mt-2"></p>
+      </div>
+
+      <div id="claimCard" class="bg-white rounded-xl border border-slate-200 p-5 opacity-50 pointer-events-none transition">
+        <h2 class="font-semibold text-slate-900 mb-2">2 · Submit a claim</h2>
+        <div class="flex gap-2 mb-2 text-xs">
+          <button data-p="clean" class="preset border border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg px-2 py-1">Low-risk claim</button>
+          <button data-p="risky" class="preset border border-rose-300 text-rose-700 hover:bg-rose-50 rounded-lg px-2 py-1">High-risk claim</button>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-sm">
+          <input id="cAmount" type="number" placeholder="claim amount" value="5000" class="border border-slate-300 rounded-lg px-3 py-2" />
+          <input id="cPrior" type="number" placeholder="prior claims" value="0" class="border border-slate-300 rounded-lg px-3 py-2" />
+          <input id="cIncident" type="date" value="2026-06-01" class="border border-slate-300 rounded-lg px-3 py-2" />
+          <input id="cReported" type="date" value="2026-06-03" class="border border-slate-300 rounded-lg px-3 py-2" />
+        </div>
+        <label class="flex items-center gap-2 text-xs text-slate-600 mt-2"><input id="cDocs" type="checkbox" checked /> has supporting documentation</label>
+        <button id="submitBtn" class="w-full mt-3 bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium rounded-lg py-2.5">Submit &amp; triage</button>
+        <div id="result" class="mt-4"></div>
+      </div>
+    </section>
+
+    <section class="lg:col-span-7 space-y-4">
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <div class="flex items-center justify-between mb-1">
+          <h2 class="font-semibold text-slate-900">Human review queue</h2>
+          <button id="refresh" class="text-xs text-rose-600 hover:underline">Refresh</button>
+        </div>
+        <p class="text-xs text-slate-500 mb-3">No recommendation is executed until a human clicks. This is the mandatory oversight gate.</p>
+        <div id="queue" class="space-y-3 text-sm"><p class="text-slate-400">Queue empty.</p></div>
+      </div>
+
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <h2 class="font-semibold text-slate-900 mb-1">Audit trail (explainability)</h2>
+        <p class="text-xs text-slate-500 mb-3">The full, ordered reasoning chain for a claim — every step, who decided it, and why.</p>
+        <div id="audit" class="text-xs text-slate-500">Click "Audit" on a claim to reconstruct its reasoning chain.</div>
+      </div>
+
+      <div class="bg-rose-50 border border-rose-100 rounded-xl p-4 text-xs text-rose-900 leading-relaxed">
+        <strong>Regulated-AI design.</strong> Fraud risk comes from a trained classifier (not LLM guesswork); policy checks and settlement amounts are deterministic code; and there is no code path to a settlement without a recorded human approval. Every step is written to an immutable audit trail — the EU AI Act explainability evidence.
+      </div>
+    </section>
+  </main>
+
+  <footer class="max-w-6xl mx-auto px-6 pb-10 text-center text-xs text-slate-400">
+    Offline mode: trained logistic-regression fraud model + template reasoning. Set ANTHROPIC_API_KEY on the server for LLM-drafted rationales.
+  </footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let token = localStorage.getItem("ct_token") || null;
+let tenantId = localStorage.getItem("ct_tenant") || null;
+
+const PRESETS = {
+  clean: { cAmount: 4000, cPrior: 0, cIncident: "2026-06-01", cReported: "2026-06-02", cDocs: true },
+  risky: { cAmount: 19000, cPrior: 4, cIncident: "2026-01-05", cReported: "2026-03-20", cDocs: false },
+};
+
+async function api(path, opts = {}) {
+  const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+  if (token) headers["Authorization"] = "Bearer " + token;
+  const res = await fetch(path, { ...opts, headers });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
+  return res.json();
+}
+
+function signedIn() {
+  $("tenantBadge").classList.remove("hidden");
+  $("tenantBadge").textContent = "tenant " + tenantId.slice(0, 8);
+  $("seedPolicyBtn").disabled = false;
+  refresh();
+}
+
+$("signupBtn").onclick = async () => {
+  try {
+    const out = await api("/tenants/signup", { method: "POST", body: JSON.stringify({ name: $("tenantName").value })});
+    token = out.access_token; tenantId = out.tenant_id;
+    localStorage.setItem("ct_token", token); localStorage.setItem("ct_tenant", tenantId);
+    signedIn();
+  } catch (e) { alert("Signup failed: " + e.message); }
+};
+
+$("seedPolicyBtn").onclick = async () => {
+  try {
+    await api("/policies", { method: "POST", body: JSON.stringify({
+      policy_number: "POL-100", holder_name: "Mario Rossi", coverage_type: "auto",
+      coverage_limit: 20000, deductible: 500, start_date: "2026-01-01", end_date: "2026-12-31", active: true })});
+    $("policyMsg").textContent = "Policy POL-100 created.";
+    $("claimCard").classList.remove("opacity-50", "pointer-events-none");
+  } catch (e) { alert("Policy failed: " + e.message); }
+};
+
+document.querySelectorAll(".preset").forEach(b => b.onclick = () => {
+  const p = PRESETS[b.dataset.p];
+  $("cAmount").value = p.cAmount; $("cPrior").value = p.cPrior;
+  $("cIncident").value = p.cIncident; $("cReported").value = p.cReported; $("cDocs").checked = p.cDocs;
+});
+
+function bandPill(band) {
+  const map = { low: "bg-emerald-100 text-emerald-700", medium: "bg-amber-100 text-amber-700", high: "bg-rose-100 text-rose-700" };
+  return '<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded ' + (map[band]||"bg-slate-100") + '">FRAUD ' + band.toUpperCase() + '</span>';
+}
+function statusPill(s) {
+  const map = { pending_review: "bg-amber-100 text-amber-700", settled: "bg-emerald-100 text-emerald-700", rejected: "bg-slate-200 text-slate-600" };
+  return '<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded ' + (map[s]||"bg-slate-100") + '">' + s.replace(/_/g," ").toUpperCase() + '</span>';
+}
+
+function renderResult(c) {
+  const f = c.fraud_assessment, r = c.recommendation;
+  $("result").innerHTML = '<div class="fade-in border border-slate-200 rounded-lg p-3 space-y-1">'
+    + '<div class="flex items-center gap-2">' + statusPill(c.status) + (f ? bandPill(f.band) : '') + '</div>'
+    + '<div class="text-xs">Fraud score: <strong>' + (f ? f.score : "—") + '</strong>'
+    + (f && f.top_factors.length ? ' · ' + f.top_factors.join("; ") : '') + '</div>'
+    + (r ? '<div class="text-xs text-slate-600">Recommendation: <strong>' + r.decision + '</strong> €' + r.recommended_amount + '</div>' : '')
+    + '<div class="text-[11px] text-amber-700 mt-1">Awaiting mandatory human review →</div></div>';
+}
+
+$("submitBtn").onclick = async () => {
+  try {
+    const c = await api("/claims", { method: "POST", body: JSON.stringify({
+      policy_number: "POL-100", claim_type: "auto", claim_amount: parseFloat($("cAmount").value),
+      incident_date: $("cIncident").value, reported_date: $("cReported").value,
+      prior_claims_count: parseInt($("cPrior").value) || 0, has_documentation: $("cDocs").checked })});
+    renderResult(c); refresh();
+  } catch (e) { alert("Submit failed: " + e.message); }
+};
+
+async function review(id, decision) {
+  const reviewer = prompt(decision === "approve" ? "Approve — your reviewer name:" : "Reject — your reviewer name:", "adjuster-1");
+  if (!reviewer) return;
+  try { await api("/claims/" + id + "/review", { method: "POST", body: JSON.stringify({ decision, reviewer })}); refresh(); }
+  catch (e) { alert("Review failed: " + e.message); }
+}
+
+async function showAudit(id) {
+  try {
+    const chain = await api("/claims/" + id + "/audit");
+    $("audit").innerHTML = '<ol class="space-y-1">' + chain.map((e,i) =>
+      '<li class="flex gap-2"><span class="text-slate-400">' + (i+1) + '.</span><div>'
+      + '<span class="font-semibold text-slate-700">' + e.step + '</span> '
+      + '<span class="text-[10px] px-1 rounded bg-slate-100">' + e.decided_by + '</span><br>'
+      + '<span class="text-slate-500">' + e.reasoning + '</span></div></li>').join("") + '</ol>';
+  } catch (e) { alert("Audit failed: " + e.message); }
+}
+window.reviewClaim = review; window.showAudit = showAudit;
+
+async function refresh() {
+  try {
+    const q = await api("/reviews/queue");
+    $("queue").innerHTML = q.length ? q.map(c => {
+      const f = c.fraud_assessment, r = c.recommendation;
+      return '<div class="border border-slate-200 rounded-lg p-3">'
+        + '<div class="flex items-center justify-between"><div class="flex items-center gap-2">'
+        + (f ? bandPill(f.band) : '') + '<span class="text-xs text-slate-500">' + c.policy_number + ' · €' + c.claim_amount + '</span></div>'
+        + '<span class="text-xs text-slate-400 font-mono">' + c.id.slice(0,8) + '</span></div>'
+        + (r ? '<div class="text-xs text-slate-600 mt-1">Rec: <strong>' + r.decision + '</strong> €' + r.recommended_amount + ' — ' + r.reasoning + '</div>' : '')
+        + '<div class="flex gap-2 mt-2">'
+        + '<button class="text-xs bg-emerald-600 text-white rounded px-3 py-1" onclick=\'reviewClaim("'+c.id+'","approve")\'>Approve &amp; settle</button>'
+        + '<button class="text-xs bg-slate-600 text-white rounded px-3 py-1" onclick=\'reviewClaim("'+c.id+'","reject")\'>Reject</button>'
+        + '<button class="text-xs border border-slate-300 rounded px-3 py-1" onclick=\'showAudit("'+c.id+'")\'>Audit</button>'
+        + '</div></div>';
+    }).join("") : '<p class="text-slate-400">Queue empty.</p>';
+  } catch { /* not signed in */ }
+}
+$("refresh").onclick = refresh;
+
+if (token && tenantId) signedIn();
+</script>
+</body>
+</html>
